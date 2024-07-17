@@ -4,10 +4,10 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework import status
 from django.db import transaction
-from rest_framework.permissions import AllowAny
-from .models import StudentData
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from .models import StudentData, TeacherData, AdminData, User
 from .serializers import UserSerializer, QuraanDaysSerializer
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate
 from string import ascii_letters, digits
 # import random
 from twilio.rest import Client # type: ignore
@@ -39,7 +39,7 @@ def is_valid_time_format(time_string):
         # If parsing fails, the format is incorrect
         return False
 
-marksList = ['!', '@', '#', '$', '%', '^', '&', '*', '?', '_', '-']
+marksList = ['!', '@', '#', '$', '%', '^', '&', '*', '?', '_', '-', '.']
 arCharsList = [
     'ض',
     'ص',
@@ -185,9 +185,9 @@ class RegisterStudentView(APIView):
                 tmp_list.append(date["day"])
 
         if student_serializer.is_valid():
-            student = student_serializer.save()
+            student: User = student_serializer.save() # type: ignore
             student_data = StudentData.objects.create(student=student)
-            user = authenticate(username=student.username, password=password)
+            user = authenticate(phone_number=student.phone_number, password=password)
             if user is not None:
                 token, _ = Token.objects.get_or_create(user=user)
 
@@ -208,7 +208,7 @@ class RegisterStudentView(APIView):
 
             errors = []
             for date_data in quraan_days:
-                date_data['student'] = student_data.id
+                date_data['student'] = student_data.id # type: ignore
                 date_serializer = QuraanDaysSerializer(data=date_data)
                 if date_serializer.is_valid():
                     date_serializer.save()
@@ -220,6 +220,186 @@ class RegisterStudentView(APIView):
             return Response({"success": True, "token": token.key}, status=status.HTTP_201_CREATED)
         
         return Response(student_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RegisterTeacherView(APIView):
+    permission_classes = [AllowAny]
+
+    @transaction.atomic
+    def post(self, request):
+        data: dict = request.data
+        data["user_type"] = "teacher"
+        teacher_serializer = UserSerializer(data=data)
+
+        name: str = data.get("name",  None)
+        if name.endswith(" ") or name.startswith(" ") or ("  " in name):
+            return Response("name not valid",status=status.HTTP_400_BAD_REQUEST)
+
+        for c in name:
+            if not c in [*ascii_letters, *arCharsList, " "]:
+                return Response("name not valid 2",status=status.HTTP_400_BAD_REQUEST)
+
+        password: str = data.get("password", None)
+
+        if len(password) < 8:
+            return Response("password is short",status=status.HTTP_400_BAD_REQUEST)
+
+        for c in password:
+            if not c in [*ascii_letters, *digits, *marksList]:
+                return Response("password not valid", status=status.HTTP_400_BAD_REQUEST)
+
+        alive2 = False
+        for c in password:
+            if c in ascii_letters:
+                alive2 = True
+                break
+
+        if not alive2:
+            return Response("password needs chars", status=status.HTTP_400_BAD_REQUEST)
+
+        alive2 = False
+        for c in password:
+            if c in marksList:
+                alive2 = True
+                break
+
+        if not alive2:
+            return Response("password needs marks", status=status.HTTP_400_BAD_REQUEST)
+
+        alive2 = False
+        for c in password:
+            if c in digits:
+                alive2 = True
+                break
+
+        if not alive2:
+            return Response("password not valid", status=status.HTTP_400_BAD_REQUEST)
+
+        if data.get("about", None) == "":
+            data["about"] = None
+
+        if not data.get("prefered_time", None) in ["morning", "afternoon", "night"]:
+            return Response("time not valid", status=status.HTTP_400_BAD_REQUEST)
+
+        if teacher_serializer.is_valid():
+            teacher: User = teacher_serializer.save() # type: ignore
+            user = authenticate(phone_number=teacher.phone_number, password=password)
+            if user is not None:
+                token, _ = Token.objects.get_or_create(user=user)
+
+            else:
+                print("Authentication failed")
+                return Response(
+                    {"success": False, "message": "Authentication failed"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            TeacherData.objects.create(
+                teacher=teacher,
+                prefered_time=data.get("prefered_time"),
+                about=data.get("about")
+            )
+            return Response({"success": True, "token": token.key}, status=status.HTTP_201_CREATED)
+        return Response(teacher_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class RegisterAdminView(APIView):
+    permission_classes = [AllowAny]
+
+    @transaction.atomic
+    def post(self, request):
+        data: dict = request.data
+        data["user_type"] = "admin"
+        admin_serializer = UserSerializer(data=data)
+
+        name: str = data.get("name",  None)
+        if name.endswith(" ") or name.startswith(" ") or ("  " in name):
+            return Response("name not valid",status=status.HTTP_400_BAD_REQUEST)
+
+        for c in name:
+            if not c in [*ascii_letters, *arCharsList, " "]:
+                return Response("name not valid 2",status=status.HTTP_400_BAD_REQUEST)
+
+        password: str = data.get("password", None)
+
+        if len(password) < 8:
+            return Response("password is short",status=status.HTTP_400_BAD_REQUEST)
+
+        for c in password:
+            if not c in [*ascii_letters, *digits, *marksList]:
+                return Response("password not valid", status=status.HTTP_400_BAD_REQUEST)
+
+        alive2 = False
+        for c in password:
+            if c in ascii_letters:
+                alive2 = True
+                break
+
+        if not alive2:
+            return Response("password needs chars", status=status.HTTP_400_BAD_REQUEST)
+
+        alive2 = False
+        for c in password:
+            if c in marksList:
+                alive2 = True
+                break
+
+        if not alive2:
+            return Response("password needs marks", status=status.HTTP_400_BAD_REQUEST)
+
+        alive2 = False
+        for c in password:
+            if c in digits:
+                alive2 = True
+                break
+
+        if not alive2:
+            return Response("password not valid", status=status.HTTP_400_BAD_REQUEST)
+
+        if data.get("about", None) == "":
+            data["about"] = None
+
+        if admin_serializer.is_valid():
+            admin: User = admin_serializer.save() # type: ignore
+            user = authenticate(phone_number=admin.phone_number, password=password)
+            if user is not None:
+                token, _ = Token.objects.get_or_create(user=user)
+
+            else:
+                print("Authentication failed")
+                return Response(
+                    {"success": False, "message": "Authentication failed"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            AdminData.objects.create(
+                admin=admin,
+                about=data.get("about")
+            )
+            return Response({"success": True, "token": token.key}, status=status.HTTP_201_CREATED)
+        return Response(admin_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        phone_number = request.data.get('phone_number')
+        password = request.data.get('password')
+        user = authenticate(phone_number=phone_number, password=password)
+        if user is not None:
+            token, _ = Token.objects.get_or_create(user=user)
+            return Response({"success": True, "token": token.key}, status=status.HTTP_200_OK)
+        else:
+            return Response(
+                {"success": False, "message": "Invalid phone number or password"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        request.user.auth_token.delete()
 
 # class VerifyOTPView(APIView):
 #     def post(self, request):

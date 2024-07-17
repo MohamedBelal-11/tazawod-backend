@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 from pathlib import Path
+from typing import Optional
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,11 +30,11 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1:8000", "127.0.0.1"]
 
 AUTH_USER_MODEL = 'users.User'
 
-ACCOUNT_STUDENT_MODEL_USERNAME_FIELD = None
+ACCOUNT_STUDENT_MODEL_USERNAME_FIELD: Optional[str] = None
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = 'email'
-ACCOUNT_EMAIL_VERIFICATION = None
+ACCOUNT_EMAIL_VERIFICATION: Optional[str] = None
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -188,5 +189,6 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 AUTHENTICATION_BACKENDS = [
+    'users.auth_backend.UserBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
